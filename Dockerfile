@@ -24,6 +24,7 @@ ENV NITRO_PORT=3000
 RUN addgroup -S nodejs && adduser -S nuxt -G nodejs
 
 COPY --from=builder /app/.output ./.output
+COPY --from=builder /app/node_modules ./node_modules
 
 USER nuxt
 
