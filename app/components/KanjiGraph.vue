@@ -121,6 +121,9 @@ function buildGraph(tree: KanjiTreeNode): { nextNodes: GraphNode[]; nextEdges: G
 }
 
 function resetGraph() {
+  dragState.value = null
+  hoveredNodeId.value = null
+
   if (!props.tree) {
     nodes.value = []
     edges.value = []
@@ -175,6 +178,10 @@ function releaseDrag(event: PointerEvent) {
   }
 
   dragState.value = null
+}
+
+function clearHoverState() {
+  hoveredNodeId.value = null
 }
 
 const nodeMap = computed(() => {
@@ -288,6 +295,7 @@ watch(() => props.tree, resetGraph, { immediate: true })
           @pointerup="releaseDrag"
           @pointercancel="releaseDrag"
           @pointerleave="releaseDrag"
+          @mouseleave="clearHoverState"
         >
           <defs>
             <linearGradient id="graphEdgeGradient" x1="0%" y1="0%" x2="0%" y2="100%">

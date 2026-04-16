@@ -12,6 +12,7 @@ Website học Kanji tiếng Nhật từ **N5 đến N1** với giao diện hiệ
 - `kanji`: JLPT list N5-N1 + decomposition tree
 - `kanji.js`: dữ liệu KANJIDIC (meanings/readings/stroke/frequency)
 - `kanjiapi.dev`: từ liên quan theo từng chữ Kanji
+- `KanjiVG`: dữ liệu nét viết SVG để so khớp tìm kiếm vẽ tay
 
 ## Chạy dự án
 

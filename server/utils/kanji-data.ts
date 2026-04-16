@@ -39,12 +39,12 @@ type KanjiApiWordEntry = {
 
 let cachedIndex: KanjiIndexResponse | null = null
 const detailCache = new Map<string, KanjiDetail>()
-const detailCacheVersion = 'v2-vi-meaning'
+const detailCacheVersion = 'v3-stroke-svg'
 const vietnameseMeaningCache = new Map<string, string>()
 const translationSeparator = '\n[[DK_SEP]]\n'
 const strokeDataCache = new Map<
   string,
-  { viewBox: string | null; paths: string[]; source: string; error: string | null }
+  { viewBox: string | null; svg: string | null; paths: string[]; pathIds: string[]; source: string; error: string | null }
 >()
 
 function normalizeKanjiLiteral(raw: string): string {
@@ -147,8 +147,8 @@ function extractSvgAttribute(tag: string, name: string): string | null {
   return match?.[2]?.trim() || null
 }
 
-function extractStrokePathsFromSvg(svgText: string): string[] {
-  const strokes: Array<{ order: number; d: string }> = []
+function extractStrokePathsFromSvg(svgText: string): Array<{ id: string; order: number; d: string }> {
+  const strokes: Array<{ id: string; order: number; d: string }> = []
   const pathTagRegex = /<path\b[^>]*>/gi
   let match: RegExpExecArray | null = pathTagRegex.exec(svgText)
 
@@ -169,6 +169,7 @@ function extractStrokePathsFromSvg(svgText: string): string[] {
     }
 
     strokes.push({
+      id,
       order: Number.parseInt(orderMatch[1], 10),
       d
     })
@@ -178,12 +179,14 @@ function extractStrokePathsFromSvg(svgText: string): string[] {
 
   return strokes
     .sort((left, right) => left.order - right.order)
-    .map((stroke) => stroke.d)
+    .map((stroke) => stroke)
 }
 
 async function fetchKanjiStrokeData(literal: string): Promise<{
   viewBox: string | null
+  svg: string | null
   paths: string[]
+  pathIds: string[]
   source: string
   error: string | null
 }> {
@@ -195,7 +198,9 @@ async function fetchKanjiStrokeData(literal: string): Promise<{
   if (!codePointHex) {
     const result = {
       viewBox: null,
+      svg: null,
       paths: [],
+      pathIds: [],
       source: 'KanjiVG (GitHub)',
       error: 'Không xác định được mã Unicode của chữ kanji.'
     }
@@ -212,12 +217,16 @@ async function fetchKanjiStrokeData(literal: string): Promise<{
       timeout: 8_000
     })
     const viewBox = extractSvgViewBox(svgText)
-    const paths = extractStrokePathsFromSvg(svgText)
+    const strokes = extractStrokePathsFromSvg(svgText)
+    const paths = strokes.map((stroke) => stroke.d)
+    const pathIds = strokes.map((stroke) => stroke.id)
 
     if (!viewBox || paths.length === 0) {
       const result = {
         viewBox: null,
+        svg: null,
         paths: [],
+        pathIds: [],
         source,
         error: 'Không đọc được dữ liệu nét viết từ KanjiVG.'
       }
@@ -227,7 +236,9 @@ async function fetchKanjiStrokeData(literal: string): Promise<{
 
     const result = {
       viewBox,
+      svg: svgText,
       paths,
+      pathIds,
       source,
       error: null
     }
@@ -237,12 +248,34 @@ async function fetchKanjiStrokeData(literal: string): Promise<{
     const reason = error instanceof Error ? error.message : 'Unknown error'
     const result = {
       viewBox: null,
+      svg: null,
       paths: [],
+      pathIds: [],
       source,
       error: `Không tải được animation nét viết: ${reason}`
     }
     strokeDataCache.set(literal, result)
     return result
+  }
+}
+
+export async function getKanjiStrokeData(rawLiteral: string): Promise<{
+  viewBox: string | null
+  paths: string[]
+} | null> {
+  const literal = normalizeKanjiLiteral(rawLiteral)
+  if (!literal) {
+    return null
+  }
+
+  const strokeResult = await fetchKanjiStrokeData(literal)
+  if (!strokeResult.viewBox || strokeResult.paths.length === 0) {
+    return null
+  }
+
+  return {
+    viewBox: strokeResult.viewBox,
+    paths: strokeResult.paths
   }
 }
 
@@ -529,7 +562,9 @@ export async function getKanjiDetail(rawLiteral: string): Promise<KanjiDetail | 
     meanings: translatedMeanings.length > 0 ? translatedMeanings : summary.meanings,
     tree: getKanjiTree(literal),
     strokeViewBox: strokeResult.viewBox,
+    strokeSvg: strokeResult.svg,
     strokePaths: strokeResult.paths,
+    strokePathIds: strokeResult.pathIds,
     strokeSource: strokeResult.source,
     strokeError: strokeResult.error,
     relatedWords: relatedWordsResult.words,

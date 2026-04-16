@@ -311,6 +311,35 @@ body {
   margin: 12px 0;
 }
 
+.result-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.sort-label {
+  color: #334155;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.sort-select {
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: #334155;
+  padding: 0 10px;
+  font-size: 0.86rem;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 .input {
   height: 42px;
   border: 1px solid var(--border);
@@ -478,8 +507,32 @@ body {
   gap: 10px;
 }
 
-.kanji-head {
+.detail-layout {
   margin-top: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.detail-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.detail-stroke-column {
+  margin-top: 0;
+}
+
+.detail-stroke-column .stroke-animator {
+  height: 100%;
+}
+
+.detail-lower-grid {
+  margin-top: 16px;
+}
+
+.kanji-head {
   display: flex;
   gap: 14px;
   align-items: center;
@@ -588,7 +641,7 @@ body {
   margin-top: 10px;
   border: 1px solid #dbeafe;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   background:
     linear-gradient(rgba(148, 163, 184, 0.12) 1px, transparent 1px),
     linear-gradient(90deg, rgba(148, 163, 184, 0.12) 1px, transparent 1px),
@@ -596,10 +649,22 @@ body {
   background-size: 28px 28px;
 }
 
+.stroke-svg-host {
+  width: min(100%, 400px);
+  height: 400px;
+  margin: 0 auto;
+  padding: 10px;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .stroke-svg {
   display: block;
   width: 100%;
-  height: 220px;
+  height: 100%;
+  overflow: visible;
 }
 
 .stroke-path {
@@ -623,6 +688,12 @@ body {
 @keyframes stroke-draw {
   to {
     stroke-dashoffset: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .stroke-svg-host {
+    height: min(78vw, 360px);
   }
 }
 
@@ -916,12 +987,29 @@ body {
     grid-template-columns: 1fr;
   }
 
+  .result-tools {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .sort-select {
+    width: 100%;
+  }
+
   .toolbar {
     flex-wrap: wrap;
   }
 
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-stroke-column {
+    order: -1;
   }
 
   .stroke-toolbar {

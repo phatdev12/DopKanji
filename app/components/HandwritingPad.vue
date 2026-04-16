@@ -9,7 +9,14 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  detect: [strokeCount: number]
+  detect: [
+    payload: {
+      strokeCount: number
+      strokes: Array<Array<{ x: number; y: number }>>
+      canvasWidth: number
+      canvasHeight: number
+    }
+  ]
   clear: []
 }>()
 
@@ -17,6 +24,8 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const strokeCount = ref(0)
 const hasInk = ref(false)
 const isDrawing = ref(false)
+const strokes = ref<Array<Array<{ x: number; y: number }>>>([])
+let activeStroke: Array<{ x: number; y: number }> = []
 let resizeObserver: ResizeObserver | null = null
 
 function getPointerPosition(event: PointerEvent): { x: number; y: number } | null {
@@ -73,8 +82,8 @@ function startDrawing(event: PointerEvent) {
 
   isDrawing.value = true
   hasInk.value = true
-  strokeCount.value += 1
   canvas.setPointerCapture(event.pointerId)
+  activeStroke = [point]
 
   ctx.beginPath()
   ctx.moveTo(point.x, point.y)
@@ -96,6 +105,13 @@ function continueDrawing(event: PointerEvent) {
     return
   }
 
+  const lastPoint = activeStroke[activeStroke.length - 1]
+  const deltaX = point.x - lastPoint.x
+  const deltaY = point.y - lastPoint.y
+  if (Math.hypot(deltaX, deltaY) >= 2) {
+    activeStroke.push(point)
+  }
+
   ctx.lineTo(point.x, point.y)
   ctx.stroke()
 }
@@ -111,6 +127,11 @@ function stopDrawing(event: PointerEvent) {
   }
 
   isDrawing.value = false
+  if (activeStroke.length >= 2) {
+    strokes.value.push([...activeStroke])
+    strokeCount.value = strokes.value.length
+  }
+  activeStroke = []
 }
 
 function clearCanvas() {
@@ -128,15 +149,24 @@ function clearCanvas() {
   ctx.clearRect(0, 0, rect.width, rect.height)
   strokeCount.value = 0
   hasInk.value = false
+  strokes.value = []
+  activeStroke = []
   emit('clear')
 }
 
 function detectKanjiByStroke() {
-  if (!hasInk.value || strokeCount.value <= 0) {
+  const canvas = canvasRef.value
+  if (!canvas || !hasInk.value || strokes.value.length <= 0) {
     return
   }
 
-  emit('detect', strokeCount.value)
+  const rect = canvas.getBoundingClientRect()
+  emit('detect', {
+    strokeCount: strokes.value.length,
+    strokes: strokes.value.map((stroke) => stroke.map((point) => ({ x: point.x, y: point.y }))),
+    canvasWidth: rect.width,
+    canvasHeight: rect.height
+  })
 }
 
 onMounted(() => {

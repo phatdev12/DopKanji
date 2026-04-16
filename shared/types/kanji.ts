@@ -25,7 +25,9 @@ export interface RelatedWord {
 export interface KanjiDetail extends KanjiSummary {
   tree: KanjiTreeNode | null
   strokeViewBox: string | null
+  strokeSvg: string | null
   strokePaths: string[]
+  strokePathIds: string[]
   strokeSource: string
   strokeError: string | null
   relatedWords: RelatedWord[]
