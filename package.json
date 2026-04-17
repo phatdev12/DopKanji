@@ -10,9 +10,11 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@kalimahapps/vue-icons": "^1.9.5",
     "kanji": "^0.19.3",
     "kanji.js": "^1.6.2",
     "nuxt": "^4.4.2",
+    "primeicons": "^7.0.0",
     "vue": "^3.5.32",
     "vue-router": "^5.0.4"
   }

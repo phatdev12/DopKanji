@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { KanjiDetail, KanjiIndexResponse, KanjiSummary, JlptLevel } from '../../shared/types/kanji'
+import VueIcon from '@kalimahapps/vue-icons/VueIcon'
+import { BsLightningChargeFill, BsXLg } from '@kalimahapps/vue-icons/bs'
 
 const levels: JlptLevel[] = ['N5', 'N4', 'N3', 'N2', 'N1']
 
@@ -13,6 +15,97 @@ const handwritingError = ref<string | null>(null)
 const selectedDetail = ref<KanjiDetail | null>(null)
 const detailPending = ref(false)
 const detailError = ref<string | null>(null)
+const kanjiGridRef = ref<HTMLElement | null>(null)
+const wordGridRef = ref<HTMLElement | null>(null)
+const showKanjiTopFade = ref(false)
+const showKanjiBottomFade = ref(false)
+const showWordTopFade = ref(false)
+const showWordBottomFade = ref(false)
+const SCROLL_EDGE_THRESHOLD = 2
+
+type FadeUpdater = () => void
+type FadeCleanup = () => void
+
+let kanjiFadeCleanup: FadeCleanup | null = null
+let wordFadeCleanup: FadeCleanup | null = null
+let kanjiFadeUpdate: FadeUpdater = () => {}
+let wordFadeUpdate: FadeUpdater = () => {}
+let boundKanjiElement: HTMLElement | null = null
+let boundWordElement: HTMLElement | null = null
+
+function bindScrollFade(
+  element: HTMLElement,
+  setTop: (value: boolean) => void,
+  setBottom: (value: boolean) => void
+): { update: FadeUpdater; cleanup: FadeCleanup } {
+  const update = () => {
+    const maxScrollTop = element.scrollHeight - element.clientHeight
+    if (maxScrollTop <= SCROLL_EDGE_THRESHOLD) {
+      setTop(false)
+      setBottom(false)
+      return
+    }
+
+    setTop(element.scrollTop > SCROLL_EDGE_THRESHOLD)
+    setBottom(element.scrollTop < maxScrollTop - SCROLL_EDGE_THRESHOLD)
+  }
+
+  const handleResize = () => update()
+  const resizeObserver = new ResizeObserver(() => {
+    update()
+  })
+
+  element.addEventListener('scroll', update, { passive: true })
+  window.addEventListener('resize', handleResize, { passive: true })
+  resizeObserver.observe(element)
+  nextTick(() => update())
+
+  const cleanup = () => {
+    element.removeEventListener('scroll', update)
+    window.removeEventListener('resize', handleResize)
+    resizeObserver.disconnect()
+    setTop(false)
+    setBottom(false)
+  }
+
+  return { update, cleanup }
+}
+
+function syncListFadeBindings() {
+  if (kanjiGridRef.value !== boundKanjiElement) {
+    kanjiFadeCleanup?.()
+    kanjiFadeCleanup = null
+    kanjiFadeUpdate = () => {}
+    boundKanjiElement = kanjiGridRef.value
+
+    if (boundKanjiElement) {
+      const binding = bindScrollFade(boundKanjiElement, (value) => {
+        showKanjiTopFade.value = value
+      }, (value) => {
+        showKanjiBottomFade.value = value
+      })
+      kanjiFadeUpdate = binding.update
+      kanjiFadeCleanup = binding.cleanup
+    }
+  }
+
+  if (wordGridRef.value !== boundWordElement) {
+    wordFadeCleanup?.()
+    wordFadeCleanup = null
+    wordFadeUpdate = () => {}
+    boundWordElement = wordGridRef.value
+
+    if (boundWordElement) {
+      const binding = bindScrollFade(boundWordElement, (value) => {
+        showWordTopFade.value = value
+      }, (value) => {
+        showWordBottomFade.value = value
+      })
+      wordFadeUpdate = binding.update
+      wordFadeCleanup = binding.cleanup
+    }
+  }
+}
 
 const { data: indexData, pending: indexPending, error: indexError } = await useFetch<KanjiIndexResponse>(
   '/api/kanji'
@@ -196,17 +289,43 @@ function backToGrid() {
 watch(activeLevel, () => {
   backToGrid()
 })
+
+watch([kanjiGridRef, wordGridRef], () => {
+  nextTick(() => syncListFadeBindings())
+}, { flush: 'post' })
+
+watch(() => filteredKanji.value.length, () => {
+  nextTick(() => kanjiFadeUpdate())
+})
+
+watch(() => selectedDetail.value?.relatedWords.length ?? 0, () => {
+  nextTick(() => wordFadeUpdate())
+})
+
+onMounted(() => {
+  nextTick(() => syncListFadeBindings())
+})
+
+onBeforeUnmount(() => {
+  kanjiFadeCleanup?.()
+  wordFadeCleanup?.()
+  kanjiFadeCleanup = null
+  wordFadeCleanup = null
+  kanjiFadeUpdate = () => {}
+  wordFadeUpdate = () => {}
+  boundKanjiElement = null
+  boundWordElement = null
+})
 </script>
 
 <template>
   <div class="workspace">
     <div class="left-column">
-      <div class="lookup-row">
-        <section class="panel-card">
+      <div class="lookup-row" style="gap: 0; align-items: center;">
+        <section class="panel-card" style="height: max-content; padding-bottom: 25px !important; padding-top: 25px !important; border-top-right-radius: 0; border-bottom-right-radius: 0;">
           <div class="panel-header">
             <div>
               <h2>Tra cứu Kanji</h2>
-              <p class="muted">Nhập chữ, âm đọc hoặc nghĩa tiếng Anh để lọc nhanh.</p>
             </div>
           </div>
 
@@ -217,8 +336,24 @@ watch(activeLevel, () => {
               placeholder="Ví dụ: 水, mizu, water..."
               type="text"
             >
-            <button class="btn btn-secondary" type="button" @click="clearSearch">Xóa</button>
-            <button class="btn" type="button" @click="openTopResult">Mở nhanh</button>
+            <button
+              class="btn btn-secondary btn-icon"
+              type="button"
+              title="Xóa tìm kiếm"
+              aria-label="Xóa tìm kiếm"
+              @click="clearSearch"
+            >
+              <VueIcon :name="BsXLg" />
+            </button>
+            <button
+              class="btn btn-icon"
+              type="button"
+              title="Mở nhanh kết quả đầu"
+              aria-label="Mở nhanh kết quả đầu"
+              @click="openTopResult"
+            >
+              <VueIcon :name="BsLightningChargeFill" />
+            </button>
           </div>
 
           <div class="result-tools">
@@ -230,8 +365,6 @@ watch(activeLevel, () => {
               <option value="literal">Theo ký tự</option>
             </select>
           </div>
-
-          <p class="muted">{{ resultMeta }}</p>
           <p v-if="handwritingPending" class="muted">Đang nhận diện chữ vẽ tay...</p>
           <p v-else-if="handwritingError" class="error-text">{{ handwritingError }}</p>
           <p v-else-if="handwritingCandidates.length" class="muted">
@@ -246,10 +379,14 @@ watch(activeLevel, () => {
     </div>
 
     <div class="right-column">
-      <section v-if="selectedDetail || detailPending || detailError" class="panel-card detail-card">
+      <section v-if="selectedDetail || detailPending || detailError" class="panel-card detail-card" style="max-height: 100vh; overflow-y: auto;">
         <div class="detail-topbar">
           <button class="btn btn-secondary" type="button" @click="backToGrid">← Back</button>
-          <p class="muted">Chi tiết kanji</p>
+          <div class="kanji-meta" v-if="selectedDetail">
+            <span class="badge">JLPT {{ selectedDetail.level }}</span>
+            <span class="badge">Nét: {{ selectedDetail.strokeCount ?? 'N/A' }}</span>
+            <span class="badge">Tần suất: {{ selectedDetail.frequency ?? 'N/A' }}</span>
+          </div>
         </div>
 
         <div v-if="detailPending" class="empty-text">Đang tải thông tin kanji...</div>
@@ -260,30 +397,29 @@ watch(activeLevel, () => {
             <div class="detail-summary">
               <div class="kanji-head">
                 <div class="kanji-display">{{ selectedDetail.literal }}</div>
-                <div class="kanji-meta">
-                  <span class="badge">JLPT {{ selectedDetail.level }}</span>
-                  <span class="badge">Nét: {{ selectedDetail.strokeCount ?? 'N/A' }}</span>
-                  <span class="badge">Tần suất: {{ selectedDetail.frequency ?? 'N/A' }}</span>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div class="kanji-meta">
+                    <article class="sub-card">
+                      <h3>Onyomi</h3>
+                      <p>{{ selectedDetail.onyomi.join(' ・ ') || 'Không có' }}</p>
+                    </article>
+                    <article class="sub-card">
+                      <h3>Kunyomi</h3>
+                      <p>{{ selectedDetail.kunyomi.join(' ・ ') || 'Không có' }}</p>
+                    </article>
+                  </div>
                 </div>
               </div>
 
-              <div class="detail-grid">
+              <div>
                 <article class="sub-card">
                   <h3>Nghĩa</h3>
                   <p>{{ selectedDetail.meanings.join(', ') || 'Chưa có dữ liệu nghĩa.' }}</p>
                 </article>
-                <article class="sub-card">
-                  <h3>Onyomi</h3>
-                  <p>{{ selectedDetail.onyomi.join(' ・ ') || 'Không có' }}</p>
-                </article>
-                <article class="sub-card">
-                  <h3>Kunyomi</h3>
-                  <p>{{ selectedDetail.kunyomi.join(' ・ ') || 'Không có' }}</p>
-                </article>
               </div>
 
               <section class="word-section">
-                <div class="section-title">
+                <div class="section-title" style="padding: 0px !important;">
                   <h3>Từ liên quan</h3>
                 </div>
 
@@ -291,16 +427,23 @@ watch(activeLevel, () => {
                   {{ selectedDetail.relatedWordsError }}
                 </p>
 
-                <div v-else-if="selectedDetail.relatedWords.length" class="word-grid">
-                  <article
-                    v-for="word in selectedDetail.relatedWords"
-                    :key="`${word.written}-${word.reading}`"
-                    class="word-card"
-                  >
-                    <p class="word-main">{{ word.written }}</p>
-                    <p class="word-reading">{{ word.reading }}</p>
-                    <p class="word-meaning">{{ word.meanings.join('; ') }}</p>
-                  </article>
+                <div
+                  v-else-if="selectedDetail.relatedWords.length"
+                  class="scroll-fade-wrap"
+                >
+                  <div class="scroll-fade scroll-fade-top" :class="{ visible: showWordTopFade }" aria-hidden="true" />
+                  <div class="scroll-fade scroll-fade-bottom" :class="{ visible: showWordBottomFade }" aria-hidden="true" />
+                  <div ref="wordGridRef" class="word-grid">
+                    <article
+                      v-for="word in selectedDetail.relatedWords"
+                      :key="`${word.written}-${word.reading}`"
+                      class="word-card"
+                    >
+                      <p class="word-main">{{ word.written }}</p>
+                      <p class="word-reading">{{ word.reading }}</p>
+                      <p class="word-meaning">{{ word.meanings.join('; ') }}</p>
+                    </article>
+                  </div>
                 </div>
 
                 <p v-else class="empty-text">Chưa có dữ liệu từ liên quan.</p>
@@ -345,17 +488,21 @@ watch(activeLevel, () => {
         <p v-if="indexPending" class="empty-text">Đang tải dữ liệu JLPT...</p>
         <p v-else-if="indexError" class="error-text">Không tải được dữ liệu JLPT.</p>
 
-        <div v-else class="kanji-grid">
-          <button
-            v-for="item in filteredKanji"
-            :key="item.literal"
-            class="kanji-cell"
-            type="button"
-            @click="openKanjiDetail(item.literal)"
-          >
-            <span class="kanji-char">{{ item.literal }}</span>
-            <span class="kanji-cell-meta">{{ item.strokeCount ?? '?' }} nét</span>
-          </button>
+        <div v-else class="scroll-fade-wrap">
+          <div class="scroll-fade scroll-fade-top" :class="{ visible: showKanjiTopFade }" aria-hidden="true" />
+          <div class="scroll-fade scroll-fade-bottom" :class="{ visible: showKanjiBottomFade }" aria-hidden="true" />
+          <div ref="kanjiGridRef" class="kanji-grid">
+            <button
+              v-for="item in filteredKanji"
+              :key="item.literal"
+              class="kanji-cell"
+              type="button"
+              @click="openKanjiDetail(item.literal)"
+            >
+              <span class="kanji-char">{{ item.literal }}</span>
+              <span class="kanji-cell-meta">{{ item.strokeCount ?? '?' }} nét</span>
+            </button>
+          </div>
         </div>
       </section>
     </div>

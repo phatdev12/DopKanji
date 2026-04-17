@@ -18,6 +18,15 @@ const numberRefs = ref<SVGTextElement[]>([])
 const currentIndex = ref(0)
 const timeoutRef = ref<number | null>(null)
 
+function readCssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
 function strokeDurationMs(value: 'slow' | 'normal' | 'fast'): number {
   if (value === 'slow') return 800
   if (value === 'fast') return 300
@@ -80,9 +89,11 @@ function animateCurrentPath() {
 
   const length = path.getTotalLength()
   const duration = strokeDurationMs(speed.value)
+  const strokeColor = readCssVar('--primary', '#de8751')
+  const numberColor = readCssVar('--muted', '#6f6a85')
 
   path.style.display = 'block'
-  path.style.stroke = '#1d4ed8'
+  path.style.stroke = strokeColor
   path.style.strokeWidth = '4.5'
   path.style.strokeLinecap = 'round'
   path.style.strokeLinejoin = 'round'
@@ -98,9 +109,8 @@ function animateCurrentPath() {
 
   if (number) {
     number.style.display = 'block'
-    // --- CHỈNH SỬA SỐ THỨ TỰ NHỎ HƠN TẠI ĐÂY ---
-    number.style.fill = '#94a3b8' // Màu xám nhạt hơn
-    number.style.fontSize = '9px'  // Giảm size từ 12px xuống 9px
+    number.style.fill = numberColor
+    number.style.fontSize = '9px'
     number.style.opacity = '0.8'
   }
 
@@ -184,10 +194,11 @@ onBeforeUnmount(() => stopAnimation())
   flex-direction: column;
   gap: 1rem;
   padding: 1rem;
-  background: #f8fafc;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   border-radius: 12px;
-  /* Đã bỏ max-width để lấy full width của thẻ cha */
-  width: 100%; 
+  width: 100%;
   box-sizing: border-box;
 }
 
@@ -199,7 +210,7 @@ onBeforeUnmount(() => stopAnimation())
 
 .stroke-meta {
   font-weight: 600;
-  color: #475569;
+  color: var(--foreground);
   margin: 0;
 }
 
@@ -211,11 +222,17 @@ onBeforeUnmount(() => stopAnimation())
 .btn-action {
   padding: 6px 12px;
   font-size: 0.75rem;
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-violet);
+  color: #6a638c;
+  border: 1px solid #c9bee6;
   border-radius: 6px;
   cursor: pointer;
   white-space: nowrap;
+}
+
+.btn-action:hover {
+  border-color: #d79463;
+  color: #8c5d3d;
 }
 
 .speed-tabs {
@@ -227,29 +244,29 @@ onBeforeUnmount(() => stopAnimation())
   flex: 1;
   padding: 8px;
   font-size: 0.875rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #c9bee6;
   border-radius: 6px;
   cursor: pointer;
-  background: white;
+  background: var(--surface);
+  color: #605981;
   transition: all 0.2s;
 }
 
 .speed-btn.active {
-  background: #1d4ed8;
-  color: white;
-  border-color: #1d4ed8;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: #d79463;
 }
 
 .stroke-stage {
-  /* Giữ tỷ lệ 1:1 cho ô vuông */
   aspect-ratio: 1 / 1;
-  width: 100%; 
-  background: white;
-  background-image: 
-    linear-gradient(#f1f5f9 1px, transparent 1px),
-    linear-gradient(90deg, #f1f5f9 1px, transparent 1px);
+  width: 100%;
+  background: var(--surface-soft);
+  background-image:
+    linear-gradient(var(--line-warm) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line-warm) 1px, transparent 1px);
   background-size: 25% 25%;
-  border: 2px solid #e2e8f0;
+  border: 2px solid #c9bee6;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -258,7 +275,7 @@ onBeforeUnmount(() => stopAnimation())
 }
 
 .stroke-svg-host {
-  width: 95%; /* Tăng diện tích hiển thị chữ */
+  width: 95%;
   height: 95%;
   display: flex;
   align-items: center;
@@ -268,6 +285,6 @@ onBeforeUnmount(() => stopAnimation())
 :deep(svg) {
   width: 100%;
   height: 100%;
-  overflow: visible; 
+  overflow: visible;
 }
 </style>

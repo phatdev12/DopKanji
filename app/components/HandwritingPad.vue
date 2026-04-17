@@ -201,14 +201,6 @@ watch(
 
 <template>
   <section :class="['panel-card', 'handwriting-panel', { compact: props.compact }]">
-    <div class="panel-header">
-      <div>
-        <h3>Viết tay để tìm kiếm</h3>
-        <p class="muted">Vẽ chữ vào ô bên dưới, hệ thống sẽ lọc theo số nét.</p>
-      </div>
-      <span class="stroke-pill">{{ strokeCount }} nét</span>
-    </div>
-
     <canvas
       ref="canvasRef"
       class="handwriting-canvas"

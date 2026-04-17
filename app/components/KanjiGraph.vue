@@ -279,7 +279,6 @@ watch(() => props.tree, resetGraph, { immediate: true })
     <div class="panel-header">
       <div>
         <h3>Kanji Graph</h3>
-        <p class="muted">Cấu trúc bộ thủ và thành phần tạo chữ.</p>
       </div>
     </div>
 
@@ -362,13 +361,10 @@ watch(() => props.tree, resetGraph, { immediate: true })
         </svg>
       </div>
 
-      <p class="muted graph-hint">Kéo node để sắp xếp. Hover vào node để làm nổi bật nhánh liên quan.</p>
-
       <div class="radical-list">
         <span v-for="part in radicals" :key="part" class="radical-chip">{{ part }}</span>
       </div>
     </div>
 
-    <p v-else class="empty-text">Chọn một chữ kanji để xem graph thành phần.</p>
   </section>
 </template>
