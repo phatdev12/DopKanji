@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import '~/assets/css/main.css'
 
+useSeoMeta({
+  title: 'Đớp Kanji',
+  ogTitle: 'Đớp Kanji',
+  description: 'Công cụ tra cứu và luyện tập chữ Kanji cho người học tiếng Nhật. Học mọi lúc mọi nơi với Đớp Kanji!',
+  ogDescription: 'Công cụ tra cứu và luyện tập chữ Kanji cho người học tiếng Nhật. Học mọi lúc mọi nơi với Đớp Kanji!',
+  ogImage: '/favicon.svg',
+  ogUrl: 'https://dopkanji.com',
+})
+
 const isSidebarCollapsed = ref(true)
 
 const navItems = [
@@ -52,7 +61,9 @@ function toggleSidebar() {
       </div>
 
       <div class="brand">
-        <div class="brand-mark">漢</div>
+        <div class="brand-mark">
+          <img src="/favicon.svg" alt="Đớp Kanji" width="40" height="40" />
+        </div>
         <div class="brand-copy">
           <p class="brand-kicker">JLPT N5 - N1</p>
           <h1>Đớp Kanji</h1>
