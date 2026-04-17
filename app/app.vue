@@ -2,8 +2,8 @@
 import '~/assets/css/main.css'
 
 useSeoMeta({
-  title: 'Đớp Kanji',
-  ogTitle: 'Đớp Kanji',
+  title: 'Đớp Kanji - Hãy biến tiếng nhật thành trò chơi của riêng bạn',
+  ogTitle: 'Đớp Kanji - Hãy biến tiếng nhật thành trò chơi của riêng bạn',
   description: 'Công cụ tra cứu và luyện tập chữ Kanji cho người học tiếng Nhật. Học mọi lúc mọi nơi với Đớp Kanji!',
   ogDescription: 'Công cụ tra cứu và luyện tập chữ Kanji cho người học tiếng Nhật. Học mọi lúc mọi nơi với Đớp Kanji!',
   ogImage: '/favicon.svg',

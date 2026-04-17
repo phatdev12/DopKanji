@@ -131,7 +131,150 @@ const allKanji = computed<KanjiSummary[]>(() => {
 })
 
 function normalizeQuery(value: string): string {
-  return value.trim().toLowerCase()
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u3040-\u30ff\u3400-\u9fff\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const translatedQueryCache = new Map<string, string>()
+const translatedSearchQuery = ref('')
+let translateQueryTimer: ReturnType<typeof setTimeout> | null = null
+
+function hasJapaneseScript(value: string): boolean {
+  return /[\u3040-\u30ff\u3400-\u9fff]/.test(value)
+}
+
+function parseTranslatedText(payload: unknown): string | null {
+  if (!Array.isArray(payload) || !Array.isArray(payload[0])) {
+    return null
+  }
+
+  const translated = payload[0]
+    .map((chunk) => (Array.isArray(chunk) && typeof chunk[0] === 'string' ? chunk[0] : ''))
+    .join('')
+    .trim()
+
+  return translated.length > 0 ? translated : null
+}
+
+async function translateQueryToEnglish(rawQuery: string): Promise<string> {
+  const normalizedRawQuery = normalizeQuery(rawQuery)
+  if (!normalizedRawQuery || hasJapaneseScript(rawQuery)) {
+    return ''
+  }
+
+  if (translatedQueryCache.has(normalizedRawQuery)) {
+    return translatedQueryCache.get(normalizedRawQuery) ?? ''
+  }
+
+  const response = await $fetch<unknown>('https://translate.googleapis.com/translate_a/single', {
+    query: {
+      client: 'gtx',
+      sl: 'auto',
+      tl: 'en',
+      dt: 't',
+      q: rawQuery
+    },
+    timeout: 4_000
+  })
+
+  const translated = normalizeQuery(parseTranslatedText(response) ?? '')
+  translatedQueryCache.set(normalizedRawQuery, translated)
+  return translated
+}
+
+const kanaDigraphToRomaji: Record<string, string> = {
+  きゃ: 'kya', きゅ: 'kyu', きょ: 'kyo',
+  ぎゃ: 'gya', ぎゅ: 'gyu', ぎょ: 'gyo',
+  しゃ: 'sha', しゅ: 'shu', しょ: 'sho',
+  じゃ: 'ja', じゅ: 'ju', じょ: 'jo',
+  ちゃ: 'cha', ちゅ: 'chu', ちょ: 'cho',
+  にゃ: 'nya', にゅ: 'nyu', にょ: 'nyo',
+  ひゃ: 'hya', ひゅ: 'hyu', ひょ: 'hyo',
+  びゃ: 'bya', びゅ: 'byu', びょ: 'byo',
+  ぴゃ: 'pya', ぴゅ: 'pyu', ぴょ: 'pyo',
+  みゃ: 'mya', みゅ: 'myu', みょ: 'myo',
+  りゃ: 'rya', りゅ: 'ryu', りょ: 'ryo'
+}
+
+const kanaToRomajiMap: Record<string, string> = {
+  あ: 'a', い: 'i', う: 'u', え: 'e', お: 'o',
+  か: 'ka', き: 'ki', く: 'ku', け: 'ke', こ: 'ko',
+  が: 'ga', ぎ: 'gi', ぐ: 'gu', げ: 'ge', ご: 'go',
+  さ: 'sa', し: 'shi', す: 'su', せ: 'se', そ: 'so',
+  ざ: 'za', じ: 'ji', ず: 'zu', ぜ: 'ze', ぞ: 'zo',
+  た: 'ta', ち: 'chi', つ: 'tsu', て: 'te', と: 'to',
+  だ: 'da', ぢ: 'ji', づ: 'zu', で: 'de', ど: 'do',
+  な: 'na', に: 'ni', ぬ: 'nu', ね: 'ne', の: 'no',
+  は: 'ha', ひ: 'hi', ふ: 'fu', へ: 'he', ほ: 'ho',
+  ば: 'ba', び: 'bi', ぶ: 'bu', べ: 'be', ぼ: 'bo',
+  ぱ: 'pa', ぴ: 'pi', ぷ: 'pu', ぺ: 'pe', ぽ: 'po',
+  ま: 'ma', み: 'mi', む: 'mu', め: 'me', も: 'mo',
+  や: 'ya', ゆ: 'yu', よ: 'yo',
+  ら: 'ra', り: 'ri', る: 'ru', れ: 're', ろ: 'ro',
+  わ: 'wa', を: 'o', ん: 'n',
+  ゔ: 'vu'
+}
+
+function toHiragana(input: string): string {
+  return input
+    .replace(/[\u30a1-\u30f6]/g, (char) => String.fromCharCode(char.charCodeAt(0) - 0x60))
+    .replace(/\u3099/g, '')
+}
+
+function kanaToRomaji(input: string): string {
+  const text = toHiragana(input)
+  let result = ''
+  let pendingGemination = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const current = text[index]
+    const pair = text.slice(index, index + 2)
+
+    if (current === 'っ') {
+      pendingGemination = true
+      continue
+    }
+
+    if (current === 'ー') {
+      const last = result[result.length - 1]
+      if (last && 'aeiou'.includes(last)) {
+        result += last
+      }
+      continue
+    }
+
+    if (/\s|・|、|。/.test(current)) {
+      result += ' '
+      pendingGemination = false
+      continue
+    }
+
+    let romaji = ''
+    if (kanaDigraphToRomaji[pair]) {
+      romaji = kanaDigraphToRomaji[pair]
+      index += 1
+    } else {
+      romaji = kanaToRomajiMap[current] ?? ''
+    }
+
+    if (!romaji) {
+      continue
+    }
+
+    if (pendingGemination && /^[bcdfghjklmnpqrstvwxyz]/.test(romaji)) {
+      result += romaji[0]
+    }
+    pendingGemination = false
+    result += romaji
+  }
+
+  return result.replace(/\s+/g, ' ').trim()
 }
 
 const isGlobalSearch = computed(
@@ -139,8 +282,23 @@ const isGlobalSearch = computed(
 )
 const searchBaseKanji = computed(() => (isGlobalSearch.value ? allKanji.value : activeKanji.value))
 
+const searchableKanjiIndex = computed(() => {
+  const index = new Map<string, string>()
+
+  for (const item of searchBaseKanji.value) {
+    const readings = [...item.onyomi, ...item.kunyomi].join(' ')
+    const romajiReadings = kanaToRomaji(readings)
+    const blob = [item.literal, item.meanings.join(' '), readings, romajiReadings].join(' ')
+    index.set(item.literal, normalizeQuery(blob))
+  }
+
+  return index
+})
+
 const filteredKanji = computed(() => {
   const query = normalizeQuery(searchQuery.value)
+  const queryTerms = query.length > 0 ? query.split(' ') : []
+  const translatedQueryTerms = translatedSearchQuery.value.length > 0 ? translatedSearchQuery.value.split(' ') : []
   const candidateOrder = new Map(handwritingCandidates.value.map((literal, index) => [literal, index]))
 
   const filtered = searchBaseKanji.value.filter((item) => {
@@ -155,12 +313,12 @@ const filteredKanji = computed(() => {
       return true
     }
 
-    return (
-      item.literal.includes(searchQuery.value.trim()) ||
-      item.meanings.join(' ').toLowerCase().includes(query) ||
-      item.onyomi.join(' ').toLowerCase().includes(query) ||
-      item.kunyomi.join(' ').toLowerCase().includes(query)
-    )
+    const searchable = searchableKanjiIndex.value.get(item.literal) ?? ''
+    const matchOriginal = queryTerms.every((term) => searchable.includes(term))
+    const matchTranslated =
+      translatedQueryTerms.length > 0 && translatedQueryTerms.every((term) => searchable.includes(term))
+
+    return matchOriginal || matchTranslated
   })
 
   const sorted = [...filtered]
@@ -290,6 +448,31 @@ watch(activeLevel, () => {
   backToGrid()
 })
 
+watch(searchQuery, (value) => {
+  if (translateQueryTimer) {
+    clearTimeout(translateQueryTimer)
+    translateQueryTimer = null
+  }
+
+  const normalized = normalizeQuery(value)
+  if (!normalized || hasJapaneseScript(value)) {
+    translatedSearchQuery.value = ''
+    return
+  }
+
+  translateQueryTimer = setTimeout(async () => {
+    if (normalizeQuery(searchQuery.value) !== normalized) {
+      return
+    }
+
+    try {
+      translatedSearchQuery.value = await translateQueryToEnglish(value)
+    } catch {
+      translatedSearchQuery.value = ''
+    }
+  }, 220)
+})
+
 watch([kanjiGridRef, wordGridRef], () => {
   nextTick(() => syncListFadeBindings())
 }, { flush: 'post' })
@@ -307,6 +490,11 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  if (translateQueryTimer) {
+    clearTimeout(translateQueryTimer)
+    translateQueryTimer = null
+  }
+
   kanjiFadeCleanup?.()
   wordFadeCleanup?.()
   kanjiFadeCleanup = null
